@@ -46,6 +46,19 @@ public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig 
   @Description("Whether to modify the BigQuery table schema if it differs from the input schema.")
   protected boolean allowSchemaRelaxation;
 
+  @Macro
+  @Description("Enable partitioning during creating BigQuery table.")
+  protected boolean timePartitioningAllowed;
+
+  @Macro
+  @Nullable
+  @Description("Column name for partitioning during creating BigQuery table.")
+  protected String partitionByField;
+
+  @Macro
+  @Description("Enable required partition filter for BigQuery table during creating table.")
+  protected boolean partitionFilterRequired;
+
   public String getDataset() {
     return dataset;
   }
@@ -67,6 +80,19 @@ public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig 
 
   public boolean isAllowSchemaRelaxation() {
     return allowSchemaRelaxation;
+  }
+
+  public boolean isTimePartitioningAllowed() {
+    return timePartitioningAllowed;
+  }
+
+  @Nullable
+  public String getPartitionByField() {
+    return partitionByField;
+  }
+
+  public boolean isPartitionFilterRequired() {
+    return partitionFilterRequired;
   }
 
   @Override

@@ -80,6 +80,9 @@ public final class BigQuerySinkConfig extends AbstractBigQuerySinkConfig {
     super.validate();
     if (!containsMacro("schema")) {
       Schema outputSchema = getSchema();
+      if (timePartitioningAllowed) {
+        BigQueryUtil.validateColumnForPartition(partitionByField, outputSchema);
+      }
       if (outputSchema == null) {
         return;
       }

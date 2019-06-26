@@ -49,6 +49,52 @@
         },
         {
           "widget-type": "radio-group",
+          "name": "timePartitioningAllowed",
+          "label": "Allow Time Partitioning",
+          "widget-attributes": {
+            "layout": "inline",
+            "default": "false",
+            "options": [
+              {
+                "id": "true",
+                "label": "True"
+              },
+              {
+                "id": "false",
+                "label": "False"
+              }
+            ]
+          }
+        },
+        {
+          "widget-type": "textbox",
+          "label": "Partition By Field",
+          "name": "partitionByField",
+          "widget-attributes" : {
+            "placeholder": "Table field for partitioning"
+          }
+        },
+        {
+          "widget-type": "radio-group",
+          "name": "partitionFilterRequired",
+          "label": "Require Partition Filter",
+          "widget-attributes": {
+            "layout": "inline",
+            "default": "false",
+            "options": [
+              {
+                "id": "true",
+                "label": "True"
+              },
+              {
+                "id": "false",
+                "label": "False"
+              }
+            ]
+          }
+        },
+        {
+          "widget-type": "radio-group",
           "name": "allowSchemaRelaxation",
           "label": "Update Table Schema",
           "widget-attributes": {
