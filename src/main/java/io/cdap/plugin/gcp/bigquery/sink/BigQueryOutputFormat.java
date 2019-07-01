@@ -116,10 +116,10 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Jso
 
       boolean allowSchemaRelaxation = conf.getBoolean(BigQueryConstants.CONFIG_ALLOW_SCHEMA_RELAXATION, false);
       LOG.debug("Allow schema relaxation: '{}'", allowSchemaRelaxation);
-      boolean allowTimePartitioning = conf.getBoolean(BigQueryConstants.CONFIG_ALLOW_TIME_PARTITIONING, false);
-      LOG.debug("Allow time partitioning: '{}'", allowTimePartitioning);
+      boolean allowTimePartitioning = conf.getBoolean(BigQueryConstants.CONFIG_CREATE_PARTITIONED_TABLE, false);
+      LOG.debug("Create Partitioned Table: '{}'", allowTimePartitioning);
       String partitionByField = conf.get(BigQueryConstants.CONFIG_PARTITION_BY_FIELD, null);
-      LOG.debug("Partition by field: '{}'", partitionByField);
+      LOG.debug("Partition Field: '{}'", partitionByField);
       boolean requirePartitionFilter = conf.getBoolean(BigQueryConstants.CONFIG_REQUIRE_PARTITION_FILTER, false);
       LOG.debug("Require partition filter: '{}'", requirePartitionFilter);
 

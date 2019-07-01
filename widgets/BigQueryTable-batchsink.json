@@ -49,8 +49,8 @@
         },
         {
           "widget-type": "radio-group",
-          "name": "timePartitioningAllowed",
-          "label": "Allow Time Partitioning",
+          "name": "createPartitionedTable",
+          "label": "Create Partitioned Table",
           "widget-attributes": {
             "layout": "inline",
             "default": "false",
@@ -68,7 +68,7 @@
         },
         {
           "widget-type": "textbox",
-          "label": "Partition By Field",
+          "label": "Partition Field",
           "name": "partitionByField",
           "widget-attributes" : {
             "placeholder": "Table field for partitioning"

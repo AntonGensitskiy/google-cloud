@@ -16,11 +16,21 @@
 
 package io.cdap.plugin.gcp.bigquery.sink;
 
+import com.google.auth.Credentials;
+import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.BigQueryException;
+import com.google.cloud.bigquery.StandardTableDefinition;
+import com.google.cloud.bigquery.Table;
+import com.google.cloud.bigquery.TableId;
+import com.google.cloud.bigquery.TimePartitioning;
 import com.google.common.base.Strings;
 import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Macro;
 import io.cdap.cdap.api.data.schema.Schema;
+import io.cdap.cdap.etl.api.validation.InvalidConfigPropertyException;
+import io.cdap.cdap.etl.api.validation.InvalidStageException;
 import io.cdap.plugin.gcp.bigquery.util.BigQueryUtil;
+import io.cdap.plugin.gcp.common.GCPUtils;
 
 import java.io.IOException;
 import javax.annotation.Nullable;
@@ -80,9 +90,8 @@ public final class BigQuerySinkConfig extends AbstractBigQuerySinkConfig {
     super.validate();
     if (!containsMacro("schema")) {
       Schema outputSchema = getSchema();
-      if (timePartitioningAllowed) {
-        BigQueryUtil.validateColumnForPartition(partitionByField, outputSchema);
-      }
+      Schema schema = outputSchema != null ? outputSchema : inputSchema;
+      validatePartitionProperties(schema);
       if (outputSchema == null) {
         return;
       }
@@ -117,5 +126,80 @@ public final class BigQuerySinkConfig extends AbstractBigQuerySinkConfig {
         }
       }
     }
+  }
+
+  private void validatePartitionProperties(@Nullable Schema schema) {
+    Table table = getDestinationTable();
+    if (table != null) {
+      StandardTableDefinition tableDefinition = table.getDefinition();
+      TimePartitioning timePartitioning = tableDefinition.getTimePartitioning();
+      if (timePartitioning == null && createPartitionedTable != null && createPartitionedTable) {
+        throw new InvalidConfigPropertyException(String.format("Destination table '%s' not support partitioned",
+                                                               table.getTableId().getTable()),
+                                                 "Create Partitioned Table");
+      }
+      if (timePartitioning != null && timePartitioning.getField() != null
+        && !timePartitioning.getField().equals(partitionByField)) {
+        throw new InvalidConfigPropertyException(String.format("Destination table '%s' is partitioned by column '%s'",
+                                                               table.getTableId().getTable(),
+                                                               timePartitioning.getField()), "Partition Field");
+      }
+    } else {
+      validateColumnForPartition(partitionByField, schema);
+    }
+  }
+
+  private void validateColumnForPartition(@Nullable String columnName, @Nullable Schema schema) {
+    if (createPartitionedTable != null && createPartitionedTable) {
+      if (columnName == null) {
+        return;
+      }
+      if (schema != null) {
+        Schema.Field field = schema.getField(columnName);
+        if (field == null) {
+          throw new InvalidConfigPropertyException(
+            String.format("Partition column '%s' is missing from the table schema", columnName), "Partition Field");
+        }
+        Schema fieldSchema = field.getSchema();
+        fieldSchema = fieldSchema.isNullable() ? fieldSchema.getNonNullable() : fieldSchema;
+        Schema.LogicalType logicalType = fieldSchema.getLogicalType();
+        if (logicalType != Schema.LogicalType.DATE && logicalType != Schema.LogicalType.TIMESTAMP_MICROS
+          && logicalType != Schema.LogicalType.TIMESTAMP_MILLIS) {
+          String type = logicalType != null ? logicalType.getToken() : fieldSchema.getType().name();
+          throw new InvalidStageException(String.format("Partition column '%s' is of invalid type '%s'. " +
+                                                          "Please change it to a date or timestamp.",
+                                                        columnName, type));
+        }
+      }
+    }
+  }
+
+  private Table getDestinationTable() {
+    String project = getProject();
+    String dataset = getDataset();
+    String tableName = getTable();
+    TableId tableId = TableId.of(project, dataset, tableName);
+
+    String serviceAccountPath = getServiceAccountFilePath();
+
+    Credentials credentials = null;
+    if (serviceAccountPath != null) {
+      try {
+        credentials = GCPUtils.loadServiceAccountCredentials(serviceAccountPath);
+      } catch (IOException e) {
+        throw new InvalidConfigPropertyException(
+          String.format("Unable to load credentials from %s", serviceAccountPath), "serviceFilePath");
+      }
+    }
+    BigQuery bigQuery = GCPUtils.getBigQuery(getProject(), credentials);
+
+    Table table;
+    try {
+      table = bigQuery.getTable(tableId);
+    } catch (BigQueryException e) {
+      throw new InvalidStageException("Unable to get details about the BigQuery table: " + e.getMessage(), e);
+    }
+
+    return table;
   }
 }

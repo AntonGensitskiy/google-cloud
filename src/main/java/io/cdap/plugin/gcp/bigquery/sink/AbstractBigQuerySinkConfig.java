@@ -47,17 +47,22 @@ public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig 
   protected boolean allowSchemaRelaxation;
 
   @Macro
-  @Description("Enable partitioning during creating BigQuery table.")
-  protected boolean timePartitioningAllowed;
+  @Nullable
+  @Description("Whether to create the BigQuery table with time partitioning. This value is ignored if the table " +
+    "already exists.")
+  protected Boolean createPartitionedTable;
 
   @Macro
   @Nullable
-  @Description("Column name for partitioning during creating BigQuery table.")
+  @Description("Partitioning column for the BigQuery table. This should be left empty if the BigQuery table is an " +
+    "ingestion-time partitioned table.")
   protected String partitionByField;
 
   @Macro
-  @Description("Enable required partition filter for BigQuery table during creating table.")
-  protected boolean partitionFilterRequired;
+  @Nullable
+  @Description("Whether to create a table that requires a partition filter. This value is ignored if the table " +
+    "already exists.")
+  protected Boolean partitionFilterRequired;
 
   public String getDataset() {
     return dataset;
@@ -82,8 +87,9 @@ public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig 
     return allowSchemaRelaxation;
   }
 
-  public boolean isTimePartitioningAllowed() {
-    return timePartitioningAllowed;
+  @Nullable
+  public Boolean isCreatePartitionedTable() {
+    return createPartitionedTable;
   }
 
   @Nullable
@@ -91,7 +97,8 @@ public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig 
     return partitionByField;
   }
 
-  public boolean isPartitionFilterRequired() {
+  @Nullable
+  public Boolean isPartitionFilterRequired() {
     return partitionFilterRequired;
   }
 

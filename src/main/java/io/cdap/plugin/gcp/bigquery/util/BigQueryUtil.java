@@ -31,7 +31,6 @@ import com.google.cloud.storage.StorageException;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.cdap.cdap.api.data.schema.Schema;
-import io.cdap.cdap.etl.api.validation.InvalidStageException;
 import io.cdap.plugin.gcp.bigquery.sink.BigQuerySink;
 import io.cdap.plugin.gcp.bigquery.source.BigQuerySource;
 import io.cdap.plugin.gcp.gcs.GCSPath;
@@ -343,44 +342,4 @@ public final class BigQueryUtil {
     }
   }
 
-  public static void validateColumnForPartition(String columnName, Schema outputSchema) {
-    if (columnName == null) {
-      return;
-    }
-    if (outputSchema == null) {
-      throw new InvalidStageException(String.format("Can't validate column '%s' because output schema not specified",
-                                                       columnName));
-    }
-    for (Schema.Field field : outputSchema.getFields()) {
-      if (field.getName().equals(columnName)) {
-        if (!field.getSchema().getType().equals(Schema.Type.UNION)) {
-          if (field.getSchema().getLogicalType() != null
-            && (field.getSchema().getLogicalType().equals(Schema.LogicalType.DATE)
-            || field.getSchema().getLogicalType().equals(Schema.LogicalType.TIMESTAMP_MICROS))) {
-            return;
-          }
-        } else {
-          for (Schema schema : field.getSchema().getUnionSchemas()) {
-            if (!schema.getType().equals(Schema.Type.NULL)
-              && (Schema.LogicalType.DATE.equals(schema.getLogicalType())
-              || Schema.LogicalType.TIMESTAMP_MICROS.equals(schema.getLogicalType()))) {
-              return;
-            }
-          }
-        }
-        Schema.Type type = !Schema.Type.UNION.equals(field.getSchema().getType())
-          ? field.getSchema().getType()
-          : field.getSchema().getUnionSchema(0).getType();
-        Schema.LogicalType fieldType = !Schema.Type.UNION.equals(field.getSchema().getType())
-          ? field.getSchema().getLogicalType()
-          : field.getSchema().getUnionSchema(0).getLogicalType();
-        throw new InvalidStageException(String.format("Column '%s' is of type '%s' (logical type '%s'), " +
-                                                           "expected logical type is '%s' or '%s'",
-                                                      columnName, type, fieldType,
-                                                      Schema.LogicalType.DATE,
-                                                      Schema.LogicalType.TIMESTAMP_MICROS));
-      }
-    }
-    throw new InvalidStageException(String.format("Column '%s' missing in output table schema", columnName));
-  }
 }
