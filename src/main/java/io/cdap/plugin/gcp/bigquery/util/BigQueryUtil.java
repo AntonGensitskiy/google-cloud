@@ -23,6 +23,8 @@ import com.google.cloud.bigquery.DatasetInfo;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.google.cloud.bigquery.Table;
+import com.google.cloud.bigquery.TableId;
 import com.google.cloud.hadoop.io.bigquery.BigQueryConfiguration;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.BucketInfo;
@@ -31,9 +33,11 @@ import com.google.cloud.storage.StorageException;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.cdap.cdap.api.data.schema.Schema;
+import io.cdap.cdap.etl.api.validation.InvalidConfigPropertyException;
 import io.cdap.cdap.etl.api.validation.InvalidStageException;
 import io.cdap.plugin.gcp.bigquery.sink.BigQuerySink;
 import io.cdap.plugin.gcp.bigquery.source.BigQuerySource;
+import io.cdap.plugin.gcp.common.GCPUtils;
 import io.cdap.plugin.gcp.gcs.GCSPath;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.Job;
@@ -343,44 +347,39 @@ public final class BigQueryUtil {
     }
   }
 
-  public static void validateColumnForPartition(String columnName, Schema outputSchema) {
-    if (columnName == null) {
-      return;
-    }
-    if (outputSchema == null) {
-      throw new InvalidStageException(String.format("Can't validate column '%s' because output schema not specified",
-                                                       columnName));
-    }
-    for (Schema.Field field : outputSchema.getFields()) {
-      if (field.getName().equals(columnName)) {
-        if (!field.getSchema().getType().equals(Schema.Type.UNION)) {
-          if (field.getSchema().getLogicalType() != null
-            && (field.getSchema().getLogicalType().equals(Schema.LogicalType.DATE)
-            || field.getSchema().getLogicalType().equals(Schema.LogicalType.TIMESTAMP_MICROS))) {
-            return;
-          }
-        } else {
-          for (Schema schema : field.getSchema().getUnionSchemas()) {
-            if (!schema.getType().equals(Schema.Type.NULL)
-              && (Schema.LogicalType.DATE.equals(schema.getLogicalType())
-              || Schema.LogicalType.TIMESTAMP_MICROS.equals(schema.getLogicalType()))) {
-              return;
-            }
-          }
-        }
-        Schema.Type type = !Schema.Type.UNION.equals(field.getSchema().getType())
-          ? field.getSchema().getType()
-          : field.getSchema().getUnionSchema(0).getType();
-        Schema.LogicalType fieldType = !Schema.Type.UNION.equals(field.getSchema().getType())
-          ? field.getSchema().getLogicalType()
-          : field.getSchema().getUnionSchema(0).getLogicalType();
-        throw new InvalidStageException(String.format("Column '%s' is of type '%s' (logical type '%s'), " +
-                                                           "expected logical type is '%s' or '%s'",
-                                                      columnName, type, fieldType,
-                                                      Schema.LogicalType.DATE,
-                                                      Schema.LogicalType.TIMESTAMP_MICROS));
+  /**
+   * Get BigQuery table.
+   *
+   * @param projectId BigQuery project ID
+   * @param datasetId BigQuery dataset ID
+   * @param tableName BigQuery table name
+   * @param serviceAccountPath service account file path
+   * @return BigQuery table
+   */
+  @Nullable
+  public static Table getBigQueryTable(String projectId, String datasetId, String tableName,
+                                       @Nullable String serviceAccountPath) {
+    TableId tableId = TableId.of(projectId, datasetId, tableName);
+
+    com.google.auth.Credentials credentials = null;
+    if (serviceAccountPath != null) {
+      try {
+        credentials = GCPUtils.loadServiceAccountCredentials(serviceAccountPath);
+      } catch (IOException e) {
+        throw new InvalidConfigPropertyException(
+          String.format("Unable to load credentials from %s", serviceAccountPath), "serviceFilePath");
       }
     }
-    throw new InvalidStageException(String.format("Column '%s' missing in output table schema", columnName));
+    BigQuery bigQuery = GCPUtils.getBigQuery(projectId, credentials);
+
+    Table table;
+    try {
+      table = bigQuery.getTable(tableId);
+    } catch (BigQueryException e) {
+      throw new InvalidStageException("Unable to get details about the BigQuery table: " + e.getMessage(), e);
+    }
+
+    return table;
   }
+
 }

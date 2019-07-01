@@ -116,16 +116,16 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Jso
 
       boolean allowSchemaRelaxation = conf.getBoolean(BigQueryConstants.CONFIG_ALLOW_SCHEMA_RELAXATION, false);
       LOG.debug("Allow schema relaxation: '{}'", allowSchemaRelaxation);
-      boolean allowTimePartitioning = conf.getBoolean(BigQueryConstants.CONFIG_ALLOW_TIME_PARTITIONING, false);
-      LOG.debug("Allow time partitioning: '{}'", allowTimePartitioning);
+      boolean createPartitionedTable = conf.getBoolean(BigQueryConstants.CONFIG_CREATE_PARTITIONED_TABLE, false);
+      LOG.debug("Create Partitioned Table: '{}'", createPartitionedTable);
       String partitionByField = conf.get(BigQueryConstants.CONFIG_PARTITION_BY_FIELD, null);
-      LOG.debug("Partition by field: '{}'", partitionByField);
+      LOG.debug("Partition Field: '{}'", partitionByField);
       boolean requirePartitionFilter = conf.getBoolean(BigQueryConstants.CONFIG_REQUIRE_PARTITION_FILTER, false);
       LOG.debug("Require partition filter: '{}'", requirePartitionFilter);
 
       try {
         importFromGcs(destProjectId, destTable, destSchema.orElse(null), kmsKeyName, outputFileFormat,
-                      writeDisposition, sourceUris, allowSchemaRelaxation, allowTimePartitioning, partitionByField,
+                      writeDisposition, sourceUris, allowSchemaRelaxation, createPartitionedTable, partitionByField,
                       requirePartitionFilter);
       } catch (InterruptedException e) {
         throw new IOException("Failed to import GCS into BigQuery", e);
@@ -146,7 +146,7 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Jso
      */
     private void importFromGcs(String projectId, TableReference tableRef, @Nullable TableSchema schema,
                                @Nullable String kmsKeyName, BigQueryFileFormat sourceFormat, String writeDisposition,
-                               List<String> gcsPaths, boolean allowSchemaRelaxation, boolean allowTimePartitioning,
+                               List<String> gcsPaths, boolean allowSchemaRelaxation, boolean createPartitionedTable,
                                @Nullable String partitionByField, boolean requirePartitionFilter)
       throws IOException, InterruptedException {
       LOG.info("Importing into table '{}' from {} paths; path[0] is '{}'; awaitCompletion: {}",
@@ -160,7 +160,7 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Jso
       loadConfig.setSourceUris(gcsPaths);
       loadConfig.setDestinationTable(tableRef);
       loadConfig.setWriteDisposition(writeDisposition);
-      if (allowTimePartitioning) {
+      if (createPartitionedTable) {
         TimePartitioning timePartitioning = new TimePartitioning();
         timePartitioning.setType("DAY");
         if (partitionByField != null) {
