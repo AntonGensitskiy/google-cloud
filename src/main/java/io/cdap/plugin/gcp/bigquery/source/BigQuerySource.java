@@ -16,6 +16,7 @@
 
 package io.cdap.plugin.gcp.bigquery.source;
 
+import com.google.api.services.bigquery.Bigquery;
 import com.google.auth.Credentials;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
@@ -23,10 +24,13 @@ import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.StandardSQLTypeName;
+import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
-import com.google.cloud.hadoop.io.bigquery.AvroBigQueryInputFormat;
+import com.google.cloud.bigquery.TimePartitioning;
 import com.google.cloud.hadoop.io.bigquery.BigQueryConfiguration;
+import com.google.cloud.hadoop.io.bigquery.BigQueryFactory;
+import com.google.cloud.hadoop.io.bigquery.BigQueryHelper;
 import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.annotation.Plugin;
@@ -56,10 +60,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.time.DateTimeException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -115,6 +123,7 @@ public final class BigQuerySource extends BatchSource<LongWritable, GenericData.
       null : GCPUtils.loadServiceAccountCredentials(serviceAccountPath);
     BigQuery bigQuery = GCPUtils.getBigQuery(config.getDatasetProject(), credentials);
     validateOutputSchema(bigQuery);
+    validatePartitionProperties();
 
     uuid = UUID.randomUUID();
     configuration = BigQueryUtil.getBigQueryConfig(config.getServiceAccountFilePath(), config.getProject());
@@ -136,11 +145,21 @@ public final class BigQuerySource extends BatchSource<LongWritable, GenericData.
     configuration.setBoolean("fs.gs.impl.disable.cache", true);
     configuration.setBoolean("fs.gs.metadata.cache.enable", false);
 
+    String query = generateQuery();
+
+    LOG.debug("Query -> " + query);
+
+    if (query != null) {
+      configuration.set(BigQueryConfiguration.INPUT_QUERY_KEY, query);
+    }
+
     String temporaryGcsPath = String.format("gs://%s/hadoop/input/%s", bucket, uuid);
-    AvroBigQueryInputFormat.setTemporaryCloudStorageDirectory(configuration, temporaryGcsPath);
-    AvroBigQueryInputFormat.setEnableShardedExport(configuration, false);
+    CdapBigQueryInputFormat.setTemporaryCloudStorageDirectory(configuration, temporaryGcsPath);
+    CdapBigQueryInputFormat.setEnableShardedExport(configuration, false);
     BigQueryConfiguration.configureBigQueryInput(configuration, config.getDatasetProject(),
-                                                 config.getDataset(), config.getTable());
+                                                 config.getDataset(),
+                                                 query == null ? config.getTable() : uuid.toString()
+                                                   .replaceAll("-", "_"));
 
     Job job = Job.getInstance(configuration);
     job.setOutputKeyClass(LongWritable.class);
@@ -183,6 +202,25 @@ public final class BigQuerySource extends BatchSource<LongWritable, GenericData.
       }
     } catch (IOException e) {
       LOG.warn("Failed to delete bucket " + gcsPath.toUri().getPath() + ", " + e.getMessage());
+    }
+    if (configuration.get(BigQueryConfiguration.INPUT_QUERY_KEY) != null) {
+      try {
+        BigQueryFactory factory = new BigQueryFactory();
+        BigQueryHelper bigQueryHelper = factory.getBigQueryHelper(configuration);
+        Bigquery.Tables tables = bigQueryHelper.getRawBigquery().tables();
+        Bigquery.Tables.Delete delete = tables.delete(
+          configuration.get(BigQueryConfiguration.INPUT_PROJECT_ID_KEY),
+          configuration.get(BigQueryConfiguration.INPUT_DATASET_ID_KEY),
+          configuration.get(BigQueryConfiguration.INPUT_TABLE_ID_KEY));
+        delete.execute();
+      } catch (IOException gse) {
+        LOG.warn(String.format("Could not delete temporary BigQuery table %s.%s.%s. Temporary data not cleaned up.",
+                               configuration.get(BigQueryConfiguration.INPUT_PROJECT_ID_KEY),
+                               configuration.get(BigQueryConfiguration.INPUT_DATASET_ID_KEY),
+                               configuration.get(BigQueryConfiguration.INPUT_TABLE_ID_KEY)), gse);
+      } catch (GeneralSecurityException gse) {
+        LOG.warn("Failed to create BigQuery client", gse);
+      }
     }
   }
 
@@ -285,6 +323,93 @@ public final class BigQuerySource extends BatchSource<LongWritable, GenericData.
     }
   }
 
+  private void validatePartitionProperties() {
+
+    Table sourceTable = BigQueryUtil.getBigQueryTable(config.getDatasetProject(), config.getDataset(),
+                                                      config.getTable(), config.getServiceAccountFilePath());
+    TimePartitioning timePartitioning = ((StandardTableDefinition) Objects.requireNonNull(sourceTable).getDefinition())
+      .getTimePartitioning();
+    if (timePartitioning == null) {
+      return;
+    }
+    String partitionFromDate = config.getPartitionFrom();
+    String partitionToDate = config.getPartitionTo();
+
+    if (partitionFromDate == null && partitionToDate == null) {
+      return;
+    }
+    LocalDate fromDate = null;
+    if (partitionFromDate != null) {
+      try {
+        fromDate = LocalDate.parse(partitionFromDate);
+      } catch (DateTimeException ex) {
+        throw new InvalidConfigPropertyException("Invalid Partition From Date format. Partition From Date should be " +
+                                                   "in format yyyy-MM-dd", ex, "Partition From Date");
+      }
+    }
+    LocalDate toDate = null;
+    if (partitionToDate != null) {
+      try {
+        toDate = LocalDate.parse(partitionToDate);
+      } catch (DateTimeException ex) {
+        throw new InvalidConfigPropertyException("Invalid Partition To Date format. Partition To Date should be " +
+                                                   "in format yyyy-MM-dd", ex, "Partition To Date");
+      }
+    }
+
+    if (fromDate != null && toDate != null && fromDate.isAfter(toDate) && !fromDate.isEqual(toDate)) {
+      throw new IllegalArgumentException("Partition From Date should be before or equal Partition To Date");
+    }
+
+  }
+
+  private String generateQuery() {
+    String partitionFromDate = config.getPartitionFrom();
+    String partitionToDate = config.getPartitionTo();
+    if (partitionFromDate == null && partitionToDate == null) {
+      return null;
+    }
+    String defaultColumnName = "_PARTITIONTIME";
+    String queryTemplate = "select * from %s where %s";
+    Table sourceTable = BigQueryUtil.getBigQueryTable(config.getDatasetProject(), config.getDataset(),
+                                                      config.getTable(), config.getServiceAccountFilePath());
+    StandardTableDefinition tableDefinition = Objects.requireNonNull(sourceTable).getDefinition();
+    TimePartitioning timePartitioning = tableDefinition.getTimePartitioning();
+    if (timePartitioning == null) {
+      return null;
+    }
+    StringBuilder condition = new StringBuilder();
+    String columnName = timePartitioning.getField() != null ? timePartitioning.getField() : defaultColumnName;
+
+    LegacySQLTypeName columnType = null;
+    if (!defaultColumnName.equals(columnName)) {
+      columnType = tableDefinition.getSchema().getFields().get(columnName).getType();
+    }
+
+    if (partitionFromDate != null) {
+      if (LegacySQLTypeName.DATE.equals(columnType)) {
+        condition.append("TIMESTAMP(").append(columnName).append(")");
+      } else {
+        condition.append(columnName);
+      }
+      condition.append(" >= ").append("TIMESTAMP(\"").append(partitionFromDate).append("\")");
+    }
+    if (partitionFromDate != null && partitionToDate != null) {
+      condition.append(" and ");
+    }
+    if (partitionToDate != null) {
+      if (LegacySQLTypeName.DATE.equals(columnType)) {
+        condition.append("TIMESTAMP(").append(columnName).append(")");
+      } else {
+        condition.append(columnName);
+      }
+      condition.append(" <= ").append("TIMESTAMP(\"").append(partitionToDate).append("\")");
+    }
+
+    String tableName = config.getDataset() + "." + config.getTable();
+    return String.format(queryTemplate, tableName, condition.toString());
+  }
+
   private List<Schema.Field> getSchemaFields(com.google.cloud.bigquery.Schema bgSchema) {
     List<Schema.Field> fields = new ArrayList<>();
     for (Field field : bgSchema.getFields()) {
@@ -335,7 +460,7 @@ public final class BigQuerySource extends BatchSource<LongWritable, GenericData.
     context.setInput(Input.of(config.referenceName, new InputFormatProvider() {
       @Override
       public String getInputFormatClassName() {
-        return AvroBigQueryInputFormat.class.getName();
+        return CdapBigQueryInputFormat.class.getName();
       }
 
       @Override

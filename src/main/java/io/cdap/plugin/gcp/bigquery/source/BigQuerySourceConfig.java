@@ -66,6 +66,16 @@ public final class BigQuerySourceConfig extends GCPReferenceSourceConfig {
     + "project ID.")
   private String datasetProject;
 
+  @Macro
+  @Nullable
+  @Description("Partition start date. This value is ignored if the table does not support partitions.")
+  private String partitionFrom;
+
+  @Macro
+  @Nullable
+  @Description("Partition end date. This value is ignored if the table does not support partitions.")
+  private String partitionTo;
+
   public String getDataset() {
     return dataset;
   }
@@ -120,4 +130,15 @@ public final class BigQuerySourceConfig extends GCPReferenceSourceConfig {
       throw new InvalidConfigPropertyException("Invalid schema: " + e.getMessage(), "schema");
     }
   }
+
+  @Nullable
+  public String getPartitionFrom() {
+    return partitionFrom;
+  }
+
+  @Nullable
+  public String getPartitionTo() {
+    return partitionTo;
+  }
+
 }

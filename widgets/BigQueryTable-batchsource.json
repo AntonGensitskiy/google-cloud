@@ -59,6 +59,22 @@
         },
         {
           "widget-type": "textbox",
+          "label": "Partition From Date",
+          "name": "partitionFrom",
+          "widget-attributes" : {
+            "placeholder": "Partition from"
+          }
+        },
+        {
+          "widget-type": "textbox",
+          "label": "Partition To Date",
+          "name": "partitionTo",
+          "widget-attributes" : {
+            "placeholder": "Partition to"
+          }
+        },
+        {
+          "widget-type": "textbox",
           "label": "Temporary Bucket Name",
           "name": "bucket",
           "widget-attributes" : {
