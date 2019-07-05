@@ -82,6 +82,7 @@ import java.util.stream.Collectors;
 public final class BigQuerySource extends BatchSource<LongWritable, GenericData.Record, StructuredRecord> {
   private static final Logger LOG = LoggerFactory.getLogger(BigQuerySource.class);
   public static final String NAME = "BigQueryTable";
+  public static final String DEFAULT_COLUMN_NAME = "_PARTITIONTIME";
   private BigQuerySourceConfig config;
   private Schema outputSchema;
   private Configuration configuration;
@@ -344,7 +345,7 @@ public final class BigQuerySource extends BatchSource<LongWritable, GenericData.
         fromDate = LocalDate.parse(partitionFromDate);
       } catch (DateTimeException ex) {
         throw new InvalidConfigPropertyException("Invalid Partition From Date format. Partition From Date should be " +
-                                                   "in format yyyy-MM-dd", ex, "Partition From Date");
+                                                   "in format yyyy-MM-dd", ex, "partitionFrom");
       }
     }
     LocalDate toDate = null;
@@ -353,12 +354,12 @@ public final class BigQuerySource extends BatchSource<LongWritable, GenericData.
         toDate = LocalDate.parse(partitionToDate);
       } catch (DateTimeException ex) {
         throw new InvalidConfigPropertyException("Invalid Partition To Date format. Partition To Date should be " +
-                                                   "in format yyyy-MM-dd", ex, "Partition To Date");
+                                                   "in format yyyy-MM-dd", ex, "partitionTo");
       }
     }
 
     if (fromDate != null && toDate != null && fromDate.isAfter(toDate) && !fromDate.isEqual(toDate)) {
-      throw new IllegalArgumentException("Partition From Date should be before or equal Partition To Date");
+      throw new InvalidStageException("Partition From Date should be before or equal Partition To Date");
     }
 
   }
@@ -369,7 +370,6 @@ public final class BigQuerySource extends BatchSource<LongWritable, GenericData.
     if (partitionFromDate == null && partitionToDate == null) {
       return null;
     }
-    String defaultColumnName = "_PARTITIONTIME";
     String queryTemplate = "select * from %s where %s";
     Table sourceTable = BigQueryUtil.getBigQueryTable(config.getDatasetProject(), config.getDataset(),
                                                       config.getTable(), config.getServiceAccountFilePath());
@@ -379,10 +379,10 @@ public final class BigQuerySource extends BatchSource<LongWritable, GenericData.
       return null;
     }
     StringBuilder condition = new StringBuilder();
-    String columnName = timePartitioning.getField() != null ? timePartitioning.getField() : defaultColumnName;
+    String columnName = timePartitioning.getField() != null ? timePartitioning.getField() : DEFAULT_COLUMN_NAME;
 
     LegacySQLTypeName columnType = null;
-    if (!defaultColumnName.equals(columnName)) {
+    if (!DEFAULT_COLUMN_NAME.equals(columnName)) {
       columnType = tableDefinition.getSchema().getFields().get(columnName).getType();
     }
 

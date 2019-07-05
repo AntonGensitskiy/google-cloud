@@ -19,6 +19,7 @@ package io.cdap.plugin.gcp.bigquery.source;
 import com.google.cloud.ServiceOptions;
 import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Macro;
+import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.etl.api.validation.InvalidConfigPropertyException;
 import io.cdap.plugin.gcp.common.GCPConfig;
@@ -66,14 +67,16 @@ public final class BigQuerySourceConfig extends GCPReferenceSourceConfig {
     + "project ID.")
   private String datasetProject;
 
+  @Name("partitionFrom")
   @Macro
   @Nullable
-  @Description("Partition start date. This value is ignored if the table does not support partitions.")
+  @Description("Partition start date. This value is ignored if the table does not support partitioning.")
   private String partitionFrom;
 
+  @Name("partitionTo")
   @Macro
   @Nullable
-  @Description("Partition end date. This value is ignored if the table does not support partitions.")
+  @Description("Partition end date. This value is ignored if the table does not support partitioning.")
   private String partitionTo;
 
   public String getDataset() {

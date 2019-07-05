@@ -54,7 +54,6 @@ public class CdapBigQueryInputFormat extends AbstractBigQueryInputFormat<LongWri
     try {
       bigQueryHelper = getBigQueryHelper(configuration);
     } catch (GeneralSecurityException gse) {
-      LOG.error("Failed to create BigQuery client", gse);
       throw new IOException("Failed to create BigQuery client", gse);
     }
     String exportPath =
@@ -72,7 +71,6 @@ public class CdapBigQueryInputFormat extends AbstractBigQueryInputFormat<LongWri
       export.beginExport();
       export.waitForUsableMapReduceInput();
     } catch (IOException | InterruptedException ie) {
-      LOG.error("Error while exporting", ie);
       throw new IOException("Error while exporting", ie);
     }
 
