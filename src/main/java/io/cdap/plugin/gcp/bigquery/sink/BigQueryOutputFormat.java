@@ -22,6 +22,7 @@ import com.google.api.client.util.BackOff;
 import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.client.util.Sleeper;
 import com.google.api.services.bigquery.Bigquery;
+import com.google.api.services.bigquery.model.Clustering;
 import com.google.api.services.bigquery.model.Dataset;
 import com.google.api.services.bigquery.model.EncryptionConfiguration;
 import com.google.api.services.bigquery.model.ErrorProto;
@@ -65,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 /**
@@ -122,11 +124,12 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Jso
       LOG.debug("Partition Field: '{}'", partitionByField);
       boolean requirePartitionFilter = conf.getBoolean(BigQueryConstants.CONFIG_REQUIRE_PARTITION_FILTER, false);
       LOG.debug("Require partition filter: '{}'", requirePartitionFilter);
+      String clusteringOrder = conf.get(BigQueryConstants.CONFIG_CLUSTERING_ORDER, null);
 
       try {
         importFromGcs(destProjectId, destTable, destSchema.orElse(null), kmsKeyName, outputFileFormat,
                       writeDisposition, sourceUris, allowSchemaRelaxation, createPartitionedTable, partitionByField,
-                      requirePartitionFilter);
+                      requirePartitionFilter, clusteringOrder);
       } catch (InterruptedException e) {
         throw new IOException("Failed to import GCS into BigQuery", e);
       }
@@ -147,8 +150,8 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Jso
     private void importFromGcs(String projectId, TableReference tableRef, @Nullable TableSchema schema,
                                @Nullable String kmsKeyName, BigQueryFileFormat sourceFormat, String writeDisposition,
                                List<String> gcsPaths, boolean allowSchemaRelaxation, boolean createPartitionedTable,
-                               @Nullable String partitionByField, boolean requirePartitionFilter)
-      throws IOException, InterruptedException {
+                               @Nullable String partitionByField, boolean requirePartitionFilter,
+                               String clusteringOrder) throws IOException, InterruptedException {
       LOG.info("Importing into table '{}' from {} paths; path[0] is '{}'; awaitCompletion: {}",
                BigQueryStrings.toString(tableRef), gcsPaths.size(), gcsPaths.isEmpty() ? "(empty)" : gcsPaths.get(0),
                true);
@@ -168,6 +171,12 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Jso
         }
         timePartitioning.setRequirePartitionFilter(requirePartitionFilter);
         loadConfig.setTimePartitioning(timePartitioning);
+        if (clusteringOrder != null) {
+          Clustering clustering = new Clustering();
+          clustering.setFields(Arrays.stream(clusteringOrder.split(",")).map(String::trim)
+                                 .collect(Collectors.toList()));
+          loadConfig.setClustering(clustering);
+        }
       }
 
       if (!Strings.isNullOrEmpty(kmsKeyName)) {

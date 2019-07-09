@@ -24,4 +24,5 @@ public interface BigQueryConstants {
   String CONFIG_CREATE_PARTITIONED_TABLE = "cdap.bq.sink.create.partitioned.table";
   String CONFIG_PARTITION_BY_FIELD = "cdap.bq.sink.partition.by.field";
   String CONFIG_REQUIRE_PARTITION_FILTER = "cdap.bq.sink.require.partition.filter";
+  String CONFIG_CLUSTERING_ORDER = "cdap.bq.sink.clustering.order";
 }

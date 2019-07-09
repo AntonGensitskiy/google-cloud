@@ -88,6 +88,14 @@
           }
         },
         {
+          "name": "clusteringOrder",
+          "widget-type": "textbox",
+          "label": "Clustering order",
+          "widget-attributes" : {
+            "placeholder": "Comma-separated list of fields to define clustering order (up to 4)"
+          }
+        },
+        {
           "name": "allowSchemaRelaxation",
           "widget-type": "toggle",
           "label": "Update Table Schema",

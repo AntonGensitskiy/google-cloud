@@ -66,6 +66,15 @@ public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig 
     "already exists.")
   protected Boolean partitionFilterRequired;
 
+  @Name("clusteringOrder")
+  @Macro
+  @Nullable
+  @Description(" Clustering order determines the sort order of the data. Clustering organizes data based on the " +
+    "contents of specified columns in the schema into optimally-size storage blocks, which improves the performance " +
+    "of certain types of queries. Clustering can only be used on a partitioned table, and works with tables " +
+    "partitioned either by column or ingestion time.")
+  protected String clusteringOrder;
+
   public String getDataset() {
     return dataset;
   }
@@ -100,6 +109,11 @@ public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig 
 
   public boolean isPartitionFilterRequired() {
     return partitionFilterRequired == null ? false : partitionFilterRequired;
+  }
+
+  @Nullable
+  public String getClusteringOrder() {
+    return clusteringOrder;
   }
 
   @Override
