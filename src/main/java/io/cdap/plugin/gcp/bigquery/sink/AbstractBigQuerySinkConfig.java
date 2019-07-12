@@ -30,6 +30,9 @@ import javax.annotation.Nullable;
 public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig {
   private static final String SCHEME = "gs://";
 
+  public static final String NAME_PARTITION_BY_FIELD = "partitionByField";
+  public static final String NAME_CLUSTERING_ORDER = "clusteringOrder";
+
   @Macro
   @Description("The dataset to write to. A dataset is contained within a specific project. "
     + "Datasets are top-level containers that are used to organize and control access to tables and views.")
@@ -53,7 +56,7 @@ public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig 
     "already exists.")
   protected Boolean createPartitionedTable;
 
-  @Name("partitionByField")
+  @Name(NAME_PARTITION_BY_FIELD)
   @Macro
   @Nullable
   @Description("Partitioning column for the BigQuery table. This should be left empty if the BigQuery table is an " +
@@ -66,11 +69,11 @@ public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig 
     "already exists.")
   protected Boolean partitionFilterRequired;
 
-  @Name("clusteringOrder")
+  @Name(NAME_CLUSTERING_ORDER)
   @Macro
   @Nullable
-  @Description(" Clustering order determines the sort order of the data. Clustering organizes data based on the " +
-    "contents of specified columns in the schema into optimally-size storage blocks, which improves the performance " +
+  @Description("Clustering order determines the sort order of the data. Clustering organizes data based on the " +
+    "contents of specified columns in the schema into optimally-sized storage blocks, which improves the performance " +
     "of certain types of queries. Clustering can only be used on a partitioned table, and works with tables " +
     "partitioned either by column or ingestion time.")
   protected String clusteringOrder;

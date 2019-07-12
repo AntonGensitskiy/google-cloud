@@ -125,11 +125,12 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Jso
       boolean requirePartitionFilter = conf.getBoolean(BigQueryConstants.CONFIG_REQUIRE_PARTITION_FILTER, false);
       LOG.debug("Require partition filter: '{}'", requirePartitionFilter);
       String clusteringOrder = conf.get(BigQueryConstants.CONFIG_CLUSTERING_ORDER, null);
+      boolean tabelExists = conf.getBoolean(BigQueryConstants.CONFIG_DESTINATION_TABLE_EXISTS, false);
 
       try {
         importFromGcs(destProjectId, destTable, destSchema.orElse(null), kmsKeyName, outputFileFormat,
                       writeDisposition, sourceUris, allowSchemaRelaxation, createPartitionedTable, partitionByField,
-                      requirePartitionFilter, clusteringOrder);
+                      requirePartitionFilter, clusteringOrder, tabelExists);
       } catch (InterruptedException e) {
         throw new IOException("Failed to import GCS into BigQuery", e);
       }
@@ -151,7 +152,7 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Jso
                                @Nullable String kmsKeyName, BigQueryFileFormat sourceFormat, String writeDisposition,
                                List<String> gcsPaths, boolean allowSchemaRelaxation, boolean createPartitionedTable,
                                @Nullable String partitionByField, boolean requirePartitionFilter,
-                               String clusteringOrder) throws IOException, InterruptedException {
+                               String clusteringOrder, boolean tabelExists) throws IOException, InterruptedException {
       LOG.info("Importing into table '{}' from {} paths; path[0] is '{}'; awaitCompletion: {}",
                BigQueryStrings.toString(tableRef), gcsPaths.size(), gcsPaths.isEmpty() ? "(empty)" : gcsPaths.get(0),
                true);
@@ -163,7 +164,7 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Jso
       loadConfig.setSourceUris(gcsPaths);
       loadConfig.setDestinationTable(tableRef);
       loadConfig.setWriteDisposition(writeDisposition);
-      if (createPartitionedTable) {
+      if (!tabelExists && createPartitionedTable) {
         TimePartitioning timePartitioning = new TimePartitioning();
         timePartitioning.setType("DAY");
         if (partitionByField != null) {

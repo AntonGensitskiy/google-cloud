@@ -165,7 +165,8 @@ public final class BigQuerySinkConfig extends AbstractBigQuerySinkConfig {
     Schema.Field field = schema.getField(columnName);
     if (field == null) {
       throw new InvalidConfigPropertyException(
-        String.format("Partition column '%s' is missing from the table schema", columnName), "partitionByField");
+        String.format("Partition column '%s' is missing from the table schema", columnName),
+        NAME_PARTITION_BY_FIELD);
     }
     Schema fieldSchema = field.getSchema();
     fieldSchema = fieldSchema.isNullable() ? fieldSchema.getNonNullable() : fieldSchema;
@@ -180,21 +181,22 @@ public final class BigQuerySinkConfig extends AbstractBigQuerySinkConfig {
   }
 
   private void validateClusteringOrder(@Nullable Schema schema) {
-    if (!shouldCreatePartitionedTable() || clusteringOrder == null || clusteringOrder.isEmpty() || schema == null) {
+    if (!shouldCreatePartitionedTable() || Strings.isNullOrEmpty(clusteringOrder) || schema == null) {
       return;
     }
     List<String> columnsNames = Arrays.stream(clusteringOrder.split(",")).map(String::trim)
       .collect(Collectors.toList());
     if (columnsNames.size() > MAX_NUMBER_OF_COLUMNS) {
       throw new InvalidConfigPropertyException(
-        String.format("%s clustering fields specified, exceeding the limit of %s.", columnsNames.size(),
-                      MAX_NUMBER_OF_COLUMNS), "clusteringOrder");
+        String.format("'%d' clustering fields specified, exceeding the limit of '%d'.", columnsNames.size(),
+                      MAX_NUMBER_OF_COLUMNS), NAME_CLUSTERING_ORDER);
     }
     for (String column : columnsNames) {
       Schema.Field field = schema.getField(column);
       if (field == null) {
         throw new InvalidConfigPropertyException(
-          String.format("Clustering column '%s' is missing from the table schema", column), "clusteringOrder");
+          String.format("Clustering column '%s' is missing from the table schema", column),
+          NAME_CLUSTERING_ORDER);
       }
       Schema.Type type  = field.getSchema().isNullable()
         ? field.getSchema().getNonNullable().getType()
@@ -203,15 +205,17 @@ public final class BigQuerySinkConfig extends AbstractBigQuerySinkConfig {
         ? field.getSchema().getNonNullable().getLogicalType()
         : field.getSchema().getLogicalType();
       if (!BigQueryUtil.SUPPORTED_CLUSTERING_TYPES.contains(type)) {
-        throw new IllegalArgumentException(
-          String.format("Field '%s' has type '%s', which is not supported for clustering.", column, type));
+        throw new InvalidConfigPropertyException(
+          String.format("Field '%s' has type '%s', which is not supported for clustering.", column, type),
+          NAME_CLUSTERING_ORDER);
       }
       if ((Schema.Type.INT.equals(type) && !Schema.LogicalType.DATE.equals(logicalType))
         || (Schema.Type.LONG.equals(type) && field.getSchema().getLogicalType() != null
         && !Schema.LogicalType.TIMESTAMP_MICROS.equals(logicalType))
         || (Schema.Type.BYTES.equals(type) && !Schema.LogicalType.DECIMAL.equals(logicalType))) {
-        throw new IllegalArgumentException(
-          String.format("Field '%s' has type '%s', which is not supported for clustering.", column, type));
+        throw new InvalidConfigPropertyException(
+          String.format("Field '%s' has type '%s', which is not supported for clustering.", column, type),
+          NAME_CLUSTERING_ORDER);
       }
     }
   }

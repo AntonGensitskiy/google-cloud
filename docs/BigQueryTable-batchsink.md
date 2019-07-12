@@ -53,8 +53,8 @@ is ignored if the table already exists.
 * When this is set to true, table will be created with required partition filter. 
 * When this is set to false, table will be created without required partition filter.
 
-**Clustering order**: Clustering order determines the sort order of the data. Clustering organizes data 
-based on the contents of specified columns in the schema into optimally-size storage blocks, which 
+**Clustering order**: Determines the sort order of the data. Clustering organizes data 
+based on the contents of specified columns in the schema into optimally-sized storage blocks, which 
 improves the performance of certain types of queries. Clustering can only be used on a partitioned table, 
 and works with tables partitioned either by column or ingestion time.
 

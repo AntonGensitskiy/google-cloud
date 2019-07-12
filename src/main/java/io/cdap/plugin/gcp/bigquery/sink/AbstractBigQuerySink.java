@@ -87,6 +87,7 @@ public abstract class AbstractBigQuerySink extends BatchSink<StructuredRecord, J
     BigQuery bigQuery = GCPUtils.getBigQuery(project, credentials);
     baseConfiguration = getBaseConfiguration();
     String bucket = configureBucket();
+    configureTable();
     if (!context.isPreviewEnabled()) {
       BigQueryUtil.createResources(bigQuery, GCPUtils.getStorage(project, credentials), config.getDataset(), bucket);
     }
@@ -229,6 +230,21 @@ public abstract class AbstractBigQuerySink extends BatchSink<StructuredRecord, J
     baseConfiguration.setBoolean("fs.gs.impl.disable.cache", true);
     baseConfiguration.setBoolean("fs.gs.metadata.cache.enable", false);
     return bucket;
+  }
+
+  private void configureTable() {
+    AbstractBigQuerySinkConfig config = getConfig();
+    BigQuerySinkConfig bigQuerySinkConfig = null;
+    if (config instanceof BigQuerySinkConfig) {
+      bigQuerySinkConfig = (BigQuerySinkConfig) config;
+    }
+    if (bigQuerySinkConfig == null) {
+      return;
+    }
+    Table table = BigQueryUtil.getBigQueryTable(bigQuerySinkConfig.getProject(), bigQuerySinkConfig.getDataset(),
+                                                bigQuerySinkConfig.getTable(),
+                                                bigQuerySinkConfig.getServiceAccountFilePath());
+    baseConfiguration.setBoolean(BigQueryConstants.CONFIG_DESTINATION_TABLE_EXISTS, table != null);
   }
 
   /**
