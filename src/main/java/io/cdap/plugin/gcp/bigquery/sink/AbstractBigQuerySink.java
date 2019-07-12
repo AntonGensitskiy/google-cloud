@@ -234,13 +234,10 @@ public abstract class AbstractBigQuerySink extends BatchSink<StructuredRecord, J
 
   private void configureTable() {
     AbstractBigQuerySinkConfig config = getConfig();
-    BigQuerySinkConfig bigQuerySinkConfig = null;
-    if (config instanceof BigQuerySinkConfig) {
-      bigQuerySinkConfig = (BigQuerySinkConfig) config;
-    }
-    if (bigQuerySinkConfig == null) {
+    if (!(config instanceof BigQuerySinkConfig)) {
       return;
     }
+    BigQuerySinkConfig bigQuerySinkConfig = (BigQuerySinkConfig) config;
     Table table = BigQueryUtil.getBigQueryTable(bigQuerySinkConfig.getProject(), bigQuerySinkConfig.getDataset(),
                                                 bigQuerySinkConfig.getTable(),
                                                 bigQuerySinkConfig.getServiceAccountFilePath());

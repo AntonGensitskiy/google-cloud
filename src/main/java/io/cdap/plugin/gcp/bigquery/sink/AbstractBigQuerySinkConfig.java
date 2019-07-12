@@ -72,10 +72,10 @@ public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig 
   @Name(NAME_CLUSTERING_ORDER)
   @Macro
   @Nullable
-  @Description("Clustering order determines the sort order of the data. Clustering organizes data based on the " +
-    "contents of specified columns in the schema into optimally-sized storage blocks, which improves the performance " +
-    "of certain types of queries. Clustering can only be used on a partitioned table, and works with tables " +
-    "partitioned either by column or ingestion time.")
+  @Description("Comma separated list of fields that determines the sort order of the data. Clustering organizes data " +
+    "based on the contents of specified columns in the schema into optimally-sized storage blocks, which improves " +
+    "the performance of certain types of queries. Clustering can only be used on a partitioned table, and works " +
+    "with tables partitioned either by column or ingestion time.")
   protected String clusteringOrder;
 
   public String getDataset() {

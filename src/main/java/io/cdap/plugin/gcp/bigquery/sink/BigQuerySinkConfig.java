@@ -188,8 +188,8 @@ public final class BigQuerySinkConfig extends AbstractBigQuerySinkConfig {
       .collect(Collectors.toList());
     if (columnsNames.size() > MAX_NUMBER_OF_COLUMNS) {
       throw new InvalidConfigPropertyException(
-        String.format("'%d' clustering fields specified, exceeding the limit of '%d'.", columnsNames.size(),
-                      MAX_NUMBER_OF_COLUMNS), NAME_CLUSTERING_ORDER);
+        String.format("Expected no more than '%d' clustering fields, found '%d'.", MAX_NUMBER_OF_COLUMNS,
+                      columnsNames.size()), NAME_CLUSTERING_ORDER);
     }
     for (String column : columnsNames) {
       Schema.Field field = schema.getField(column);

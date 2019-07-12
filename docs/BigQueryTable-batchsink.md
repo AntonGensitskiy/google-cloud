@@ -53,10 +53,10 @@ is ignored if the table already exists.
 * When this is set to true, table will be created with required partition filter. 
 * When this is set to false, table will be created without required partition filter.
 
-**Clustering order**: Determines the sort order of the data. Clustering organizes data 
-based on the contents of specified columns in the schema into optimally-sized storage blocks, which 
-improves the performance of certain types of queries. Clustering can only be used on a partitioned table, 
-and works with tables partitioned either by column or ingestion time.
+**Clustering order**: Comma separated list of fields that determines the sort order of the data. 
+Clustering organizes data based on the contents of specified columns in the schema into optimally-sized 
+storage blocks, which improves the performance of certain types of queries. Clustering can only be used 
+on a partitioned table, and works with tables partitioned either by column or ingestion time.
 
 **Update Table Schema**: Whether the BigQuery table schema should be modified 
 when it does not match the schema expected by the pipeline. 
