@@ -26,7 +26,6 @@ import com.google.cloud.hadoop.io.bigquery.BigQueryFileFormat;
 import com.google.cloud.hadoop.io.bigquery.output.BigQueryOutputConfiguration;
 import com.google.cloud.hadoop.io.bigquery.output.BigQueryTableFieldSchema;
 import com.google.cloud.hadoop.io.bigquery.output.BigQueryTableSchema;
-import com.google.gson.JsonObject;
 import io.cdap.cdap.api.data.batch.Output;
 import io.cdap.cdap.api.data.batch.OutputFormatProvider;
 import io.cdap.cdap.api.data.format.StructuredRecord;
@@ -37,11 +36,12 @@ import io.cdap.plugin.common.LineageRecorder;
 import io.cdap.plugin.gcp.bigquery.util.BigQueryConstants;
 import io.cdap.plugin.gcp.bigquery.util.BigQueryUtil;
 import io.cdap.plugin.gcp.common.GCPUtils;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.mapred.AvroKey;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.NullWritable;
-import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +56,7 @@ import javax.annotation.Nullable;
 /**
  * Base class for Big Query batch sink plugins.
  */
-public abstract class AbstractBigQuerySink extends BatchSink<StructuredRecord, JsonObject, NullWritable> {
+public abstract class AbstractBigQuerySink extends BatchSink<StructuredRecord, AvroKey<GenericRecord>, NullWritable> {
 
   private static final Logger LOG = LoggerFactory.getLogger(AbstractBigQuerySink.class);
 
@@ -87,7 +87,6 @@ public abstract class AbstractBigQuerySink extends BatchSink<StructuredRecord, J
     BigQuery bigQuery = GCPUtils.getBigQuery(project, credentials);
     baseConfiguration = getBaseConfiguration();
     String bucket = configureBucket();
-    configureTable();
     if (!context.isPreviewEnabled()) {
       BigQueryUtil.createResources(bigQuery, GCPUtils.getStorage(project, credentials), config.getDataset(), bucket);
     }
@@ -188,19 +187,22 @@ public abstract class AbstractBigQuerySink extends BatchSink<StructuredRecord, J
                                                                      getConfig().getProject());
     baseConfiguration.setBoolean(BigQueryConstants.CONFIG_ALLOW_SCHEMA_RELAXATION,
                                  getConfig().isAllowSchemaRelaxation());
-    baseConfiguration.setBoolean(BigQueryConstants.CONFIG_CREATE_PARTITIONED_TABLE,
-                                 getConfig().shouldCreatePartitionedTable());
-    if (getConfig().getPartitionByField() != null) {
-      baseConfiguration.set(BigQueryConstants.CONFIG_PARTITION_BY_FIELD, getConfig().getPartitionByField());
-    }
-    baseConfiguration.setBoolean(BigQueryConstants.CONFIG_REQUIRE_PARTITION_FILTER,
-                                 getConfig().isPartitionFilterRequired());
-    if (getConfig().getClusteringOrder() != null) {
-      baseConfiguration.set(BigQueryConstants.CONFIG_CLUSTERING_ORDER, getConfig().getClusteringOrder());
-    }
-    baseConfiguration.setStrings(BigQueryConstants.CONFIG_OPERATION, getConfig().getOperation().name());
-    if (getConfig().getRelationTableKey() != null) {
-      baseConfiguration.set(BigQueryConstants.CONFIG_TABLE_KEY, getConfig().getRelationTableKey());
+    if (getConfig() instanceof BigQuerySinkConfig) {
+      BigQuerySinkConfig config = (BigQuerySinkConfig) getConfig();
+      baseConfiguration.setBoolean(BigQueryConstants.CONFIG_CREATE_PARTITIONED_TABLE,
+                                   config.shouldCreatePartitionedTable());
+      if (config.getPartitionByField() != null) {
+        baseConfiguration.set(BigQueryConstants.CONFIG_PARTITION_BY_FIELD, config.getPartitionByField());
+      }
+      baseConfiguration.setBoolean(BigQueryConstants.CONFIG_REQUIRE_PARTITION_FILTER,
+                                   config.isPartitionFilterRequired());
+      if (config.getClusteringOrder() != null) {
+        baseConfiguration.set(BigQueryConstants.CONFIG_CLUSTERING_ORDER, config.getClusteringOrder());
+      }
+      baseConfiguration.setStrings(BigQueryConstants.CONFIG_OPERATION, config.getOperation().name());
+      if (config.getRelationTableKey() != null) {
+        baseConfiguration.set(BigQueryConstants.CONFIG_TABLE_KEY, config.getRelationTableKey());
+      }
     }
     return baseConfiguration;
   }
@@ -236,7 +238,7 @@ public abstract class AbstractBigQuerySink extends BatchSink<StructuredRecord, J
     return bucket;
   }
 
-  private void configureTable() {
+  protected void configureTable() {
     AbstractBigQuerySinkConfig config = getConfig();
     Table table = BigQueryUtil.getBigQueryTable(config.getProject(), config.getDataset(),
                                                 config.getTable(),
@@ -406,8 +408,8 @@ public abstract class AbstractBigQuerySink extends BatchSink<StructuredRecord, J
       String.format("%s.%s", getConfig().getDataset(), tableName),
       outputTableSchema,
       temporaryGcsPath,
-      BigQueryFileFormat.NEWLINE_DELIMITED_JSON,
-      TextOutputFormat.class);
+      BigQueryFileFormat.AVRO,
+      AvroOutputFormat.class);
 
     return configuration;
   }

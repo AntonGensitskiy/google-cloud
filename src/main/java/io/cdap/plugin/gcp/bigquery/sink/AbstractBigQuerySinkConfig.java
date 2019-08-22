@@ -17,7 +17,6 @@ package io.cdap.plugin.gcp.bigquery.sink;
 
 import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Macro;
-import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.etl.api.validation.InvalidConfigPropertyException;
 import io.cdap.plugin.gcp.common.GCPReferenceSinkConfig;
 
@@ -52,44 +51,6 @@ public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig 
   @Description("Whether to modify the BigQuery table schema if it differs from the input schema.")
   protected boolean allowSchemaRelaxation;
 
-  @Macro
-  @Nullable
-  @Description("Whether to create the BigQuery table with time partitioning. This value is ignored if the table " +
-    "already exists.")
-  protected Boolean createPartitionedTable;
-
-  @Name(NAME_PARTITION_BY_FIELD)
-  @Macro
-  @Nullable
-  @Description("Partitioning column for the BigQuery table. This should be left empty if the BigQuery table is an " +
-    "ingestion-time partitioned table.")
-  protected String partitionByField;
-
-  @Name(NAME_OPERATION)
-  @Macro
-  @Description("Type of write operation to perform. This can be set to Insert, Update or Upsert.")
-  protected String operation;
-
-  @Name(NAME_TABLE_KEY)
-  @Macro
-  @Nullable
-  @Description("List of fields that determines relation between tables during Update and Upsert operations.")
-  protected String relationTableKey;
-
-  @Macro
-  @Nullable
-  @Description("Whether to create a table that requires a partition filter. This value is ignored if the table " +
-    "already exists.")
-  protected Boolean partitionFilterRequired;
-
-  @Name(NAME_CLUSTERING_ORDER)
-  @Macro
-  @Nullable
-  @Description("List of fields that determines the sort order of the data. Fields must be of type INT, LONG, " +
-    "STRING, DATE, TIMESTAMP, BOOLEAN or DECIMAL. Tables cannot be clustered on more than 4 fields. This value is " +
-    "only used when the BigQuery table is automatically created and ignored if the table already exists.")
-  protected String clusteringOrder;
-
   @Nullable
   protected String getTable() {
     return null;
@@ -116,33 +77,6 @@ public abstract class AbstractBigQuerySinkConfig extends GCPReferenceSinkConfig 
 
   public boolean isAllowSchemaRelaxation() {
     return allowSchemaRelaxation;
-  }
-
-  public boolean shouldCreatePartitionedTable() {
-    return createPartitionedTable == null ? false : createPartitionedTable;
-  }
-
-  @Nullable
-  public String getPartitionByField() {
-    return partitionByField;
-  }
-
-  public boolean isPartitionFilterRequired() {
-    return partitionFilterRequired == null ? false : partitionFilterRequired;
-  }
-
-  @Nullable
-  public String getClusteringOrder() {
-    return clusteringOrder;
-  }
-
-  public Operation getOperation() {
-    return Operation.valueOf(operation.toUpperCase());
-  }
-
-  @Nullable
-  public String getRelationTableKey() {
-    return relationTableKey;
   }
 
   @Override

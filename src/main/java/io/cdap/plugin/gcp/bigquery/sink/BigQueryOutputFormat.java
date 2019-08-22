@@ -57,8 +57,9 @@ import com.google.cloud.hadoop.util.ConfigurationUtil;
 import com.google.cloud.hadoop.util.ResilientOperation;
 import com.google.cloud.hadoop.util.RetryDeterminer;
 import com.google.common.base.Strings;
-import com.google.gson.JsonObject;
 import io.cdap.plugin.gcp.bigquery.util.BigQueryConstants;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.mapred.AvroKey;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.JobContext;
@@ -87,7 +88,7 @@ import javax.annotation.Nullable;
  * This is added to override BigQueryUtils.waitForJobCompletion error message with more useful error message.
  * See CDAP-15289 for more information.
  */
-public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<JsonObject, NullWritable> {
+public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<AvroKey<GenericRecord>, NullWritable> {
   private static final Logger LOG = LoggerFactory.getLogger(BigQueryOutputFormat.class);
 
   private static final String UPDATE_QUERY = "UPDATE %s T SET %s FROM %s S WHERE %s";
@@ -148,7 +149,7 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Jso
       LOG.debug("Partition Field: '{}'", partitionByField);
       boolean requirePartitionFilter = conf.getBoolean(BigQueryConstants.CONFIG_REQUIRE_PARTITION_FILTER, false);
       LOG.debug("Require partition filter: '{}'", requirePartitionFilter);
-      operation = Operation.valueOf(conf.get(BigQueryConstants.CONFIG_OPERATION));
+      operation = Operation.valueOf(conf.get(BigQueryConstants.CONFIG_OPERATION, Operation.INSERT.name()));
       String clusteringOrder = conf.get(BigQueryConstants.CONFIG_CLUSTERING_ORDER, null);
       List<String> clusteringOrderList = Arrays.stream(
         clusteringOrder != null ? clusteringOrder.split(",") : new String[0]).map(String::trim)
@@ -201,6 +202,7 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Jso
       loadConfig.setSourceFormat(sourceFormat.getFormatIdentifier());
       loadConfig.setSourceUris(gcsPaths);
       loadConfig.setWriteDisposition(writeDisposition);
+      loadConfig.setUseAvroLogicalTypes(true);
       if (!tableExists && createPartitionedTable) {
         TimePartitioning timePartitioning = new TimePartitioning();
         timePartitioning.setType("DAY");

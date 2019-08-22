@@ -16,8 +16,6 @@
 package io.cdap.plugin.gcp.bigquery.sink;
 
 import com.google.cloud.bigquery.BigQuery;
-import com.google.gson.JsonObject;
-import com.google.gson.internal.bind.JsonTreeWriter;
 import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.annotation.Plugin;
@@ -30,13 +28,16 @@ import io.cdap.cdap.etl.api.PipelineConfigurer;
 import io.cdap.cdap.etl.api.batch.BatchRuntimeContext;
 import io.cdap.cdap.etl.api.batch.BatchSink;
 import io.cdap.cdap.etl.api.batch.BatchSinkContext;
+import io.cdap.plugin.format.avro.StructuredToAvroTransformer;
 import io.cdap.plugin.gcp.bigquery.util.BigQueryUtil;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.mapred.AvroKey;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.mapred.JobContext;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * This class <code>BigQuerySink</code> is a plugin that would allow users
@@ -80,6 +81,7 @@ public final class BigQuerySink extends AbstractBigQuerySink {
   protected void prepareRunInternal(BatchSinkContext context, BigQuery bigQuery, String bucket) throws IOException {
     Schema configSchema = config.getSchema();
     Schema schema = configSchema == null ? context.getInputSchema() : configSchema;
+    configureTable();
     initOutput(context, bigQuery, config.getReferenceName(), config.getTable(), schema, bucket);
   }
 
@@ -95,7 +97,9 @@ public final class BigQuerySink extends AbstractBigQuerySink {
 
       @Override
       public Map<String, String> getOutputFormatConfiguration() {
-        return BigQueryUtil.configToMap(configuration);
+        Map<String, String> map = BigQueryUtil.configToMap(configuration);
+        map.put(JobContext.OUTPUT_KEY_CLASS, AvroKey.class.getName());
+        return map;
       }
     };
   }
@@ -107,20 +111,9 @@ public final class BigQuerySink extends AbstractBigQuerySink {
   }
 
   @Override
-  public void transform(StructuredRecord input, Emitter<KeyValue<JsonObject, NullWritable>> emitter) {
-    try (JsonTreeWriter writer = new JsonTreeWriter()) {
-      writer.beginObject();
-      for (Schema.Field recordField : Objects.requireNonNull(input.getSchema().getFields())) {
-        // From all the fields in input record, write only those fields that are present in output schema
-        if (schema == null || schema.getField(recordField.getName()) != null) {
-          BigQueryRecordToJson.write(writer, recordField.getName(), input.get(recordField.getName()),
-                                     recordField.getSchema());
-        }
-      }
-      writer.endObject();
-      emitter.emit(new KeyValue<>(writer.get().getAsJsonObject(), NullWritable.get()));
-    } catch (IOException e) {
-      throw new RuntimeException("Exception while converting structured record to json.", e);
-    }
+  public void transform(StructuredRecord input, Emitter<KeyValue<AvroKey<GenericRecord>,
+    NullWritable>> emitter) throws IOException {
+    StructuredToAvroTransformer transformer = new StructuredToAvroTransformer(input.getSchema());
+    emitter.emit(new KeyValue<>(new AvroKey<>(transformer.transform(input)), NullWritable.get()));
   }
 }
