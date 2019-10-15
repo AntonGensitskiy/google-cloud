@@ -91,6 +91,8 @@ import javax.annotation.Nullable;
 public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<AvroKey<GenericRecord>, NullWritable> {
   private static final Logger LOG = LoggerFactory.getLogger(BigQueryOutputFormat.class);
 
+  private static final String SOURCE_DATA_QUERY = "(SELECT * FROM (SELECT row_number() OVER (PARTITION BY %s %s) " +
+    "as rowid, * FROM %s) where rowid = 1)";
   private static final String UPDATE_QUERY = "UPDATE %s T SET %s FROM %s S WHERE %s";
   private static final String UPSERT_QUERY = "MERGE %s T USING %s S ON %s WHEN MATCHED THEN UPDATE SET %s " +
     "WHEN NOT MATCHED THEN INSERT (%s) VALUES(%s)";
@@ -111,6 +113,7 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Avr
     private Operation operation;
     private TableReference temporaryTableReference;
     private List<String> tableKeyList;
+    private List<String> orderedByList;
     private List<String> tableFieldsList;
 
     private boolean allowSchemaRelaxation;
@@ -157,6 +160,9 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Avr
       String tableKey = conf.get(BigQueryConstants.CONFIG_TABLE_KEY, null);
       tableKeyList = Arrays.stream(tableKey != null ? tableKey.split(",") : new String[0]).map(String::trim)
         .collect(Collectors.toList());
+      String orderedBy = conf.get(BigQueryConstants.CONFIG_ORDERED_BY, null);
+      orderedByList = Arrays.stream(orderedBy != null ? orderedBy.split(",") : new String[0]).map(String::trim)
+        .map(keyValue -> keyValue.replace(":", " ")).collect(Collectors.toList());
       String tableFields = conf.get(BigQueryConstants.CONFIG_TABLE_FIELDS, null);
       tableFieldsList = Arrays.stream(tableFields != null ? tableFields.split(",") : new String[0])
         .map(String::trim).collect(Collectors.toList());
@@ -444,6 +450,9 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Avr
         case UPDATE:
           return String.format(UPDATE_QUERY, destinationTable, fieldsForUpdate, sourceTable, criteria);
         case UPSERT:
+          String orderedBy = orderedByList.isEmpty() ? "" : "ORDER BY " + String.join(", ", orderedByList);
+          sourceTable = String.format(SOURCE_DATA_QUERY, String.join(", ", tableKeyList), orderedBy,
+                                      sourceTable);
           String insertFields = String.join(", ", tableFieldsList);
           return String.format(UPSERT_QUERY, destinationTable, sourceTable, criteria, fieldsForUpdate,
                                 insertFields, insertFields);

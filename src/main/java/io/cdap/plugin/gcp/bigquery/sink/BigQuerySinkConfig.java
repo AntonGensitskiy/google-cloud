@@ -33,7 +33,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -51,6 +53,7 @@ public final class BigQuerySinkConfig extends AbstractBigQuerySinkConfig {
   public static final String NAME_TABLE = "table";
   public static final String NAME_SCHEMA = "schema";
   public static final String NAME_TABLE_KEY = "relationTableKey";
+  public static final String NAME_ORDERED_BY = "orderedBy";
   public static final String NAME_PARTITION_BY_FIELD = "partitionByField";
   public static final String NAME_CLUSTERING_ORDER = "clusteringOrder";
   public static final String NAME_OPERATION = "operation";
@@ -94,6 +97,12 @@ public final class BigQuerySinkConfig extends AbstractBigQuerySinkConfig {
   @Nullable
   @Description("List of fields that determines relation between tables during Update and Upsert operations.")
   protected String relationTableKey;
+
+  @Name(NAME_ORDERED_BY)
+  @Macro
+  @Nullable
+  @Description("Columns names and sort order that will be applied to source data during Upsert operation.")
+  protected String orderedBy;
 
   @Macro
   @Nullable
@@ -147,6 +156,11 @@ public final class BigQuerySinkConfig extends AbstractBigQuerySinkConfig {
   @Nullable
   public String getRelationTableKey() {
     return Strings.isNullOrEmpty(relationTableKey) ? null : relationTableKey;
+  }
+
+  @Nullable
+  public String getOrderedBy() {
+    return Strings.isNullOrEmpty(orderedBy) ? null : orderedBy;
   }
 
   /**
@@ -342,6 +356,48 @@ public final class BigQuerySinkConfig extends AbstractBigQuerySinkConfig {
           "Change the Table key field to be one of the schema fields.")
           .withConfigElement(NAME_TABLE_KEY, keyField);
       }
+    }
+
+    Map<String, Integer> keyMap = new HashMap<>();
+    keyFields.forEach(key -> {
+      Integer count = keyMap.get(key);
+      keyMap.put(key, count == null ? 1 : count + 1);
+    });
+
+    keyMap.keySet().stream()
+      .filter(key -> keyMap.get(key) != 1)
+      .forEach(key -> collector.addFailure(
+        String.format("Table key field '%s' is duplicated.", key),
+        String.format("Remove duplicates of Table key field '%s'.", key))
+        .withConfigElement(NAME_TABLE_KEY, key)
+      );
+
+    if (Operation.UPSERT.equals(getOperation()) && getOrderedBy() != null) {
+      List<String> orderedByFields = Arrays.stream(Objects.requireNonNull(getOrderedBy()).split(","))
+        .map(String::trim).collect(Collectors.toList());
+      orderedByFields.stream()
+        .filter(orderedByField -> !fields.contains(orderedByField.split(":")[0]))
+        .forEach(orderedByField -> collector.addFailure(
+        String.format("Ordered by field '%s' does not exist in the schema.", orderedByField.split(":")[0]),
+        "Change the Ordered by field to be one of the schema fields.")
+        .withConfigElement(NAME_ORDERED_BY, orderedByField));
+
+      Map<String, Integer> orderedByFieldMap = new HashMap<>();
+      Map<String, String> orderedByFieldValueMap = new HashMap<>();
+      orderedByFields.forEach(keyValue -> {
+          String key = keyValue.split(":")[0];
+          Integer count = orderedByFieldMap.get(key);
+          orderedByFieldMap.put(key, count == null ? 1 : count + 1);
+          orderedByFieldValueMap.put(key, keyValue);
+        });
+
+      keyMap.keySet().stream()
+        .filter(key -> orderedByFieldMap.get(key) != 1)
+        .forEach(key -> collector.addFailure(
+          String.format("Ordered by field '%s' is duplicated.", key),
+          String.format("Remove duplicates of Ordered by field '%s'.", key))
+          .withConfigElement(NAME_ORDERED_BY, orderedByFieldValueMap.get(key))
+        );
     }
   }
 
