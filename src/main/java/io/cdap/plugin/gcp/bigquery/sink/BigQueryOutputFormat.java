@@ -473,5 +473,17 @@ public class BigQueryOutputFormat extends ForwardingBigQueryFileOutputFormat<Avr
       return table.getNumRows().compareTo(BigInteger.ZERO) <= 0 && table.getNumBytes() == 0
         && table.getNumLongTermBytes() == 0;
     }
+
+    @Override
+    protected void cleanup(JobContext context) throws IOException {
+      super.cleanup(context);
+      if (temporaryTableReference != null && bigQueryHelper.tableExists(temporaryTableReference)) {
+        bigQueryHelper.getRawBigquery().tables()
+          .delete(temporaryTableReference.getProjectId(),
+                  temporaryTableReference.getDatasetId(),
+                  temporaryTableReference.getTableId())
+          .execute();
+      }
+    }
   }
 }
